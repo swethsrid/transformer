@@ -40,8 +40,14 @@ class LayerNorm(nn.Module):
         self.b = nn.Parameter(torch.zeros(cfg.d_model))
 
     def forward(self, residual: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
-        # implement your solution here
-        pass
+        mean = residual.mean(dim=-1, keepdim=True)
+        centered = residual-mean
+        var = residual.var(dim=-1, keepdim=True, unbiased=False)
+        normalized = centered/torch.sqrt(var + self.cfg.layer_norm_eps)
+        result = self.w * (normalized+self.b)
+        
+        return result
+        
 
 class Embed(nn.Module):
     def __init__(self, cfg: Config):
@@ -65,8 +71,10 @@ class PosEmbed(nn.Module):
         nn.init.normal_(self.W_pos, std=self.cfg.init_range)
 
     def forward(self, tokens: Int[Tensor, "batch position"]) -> Float[Tensor, "batch position d_model"]:
-        #implement your solution here
-        pass
+        batch_seq, seq_len = tokens.shape
+        pos_embed = self.W_pos[:seq_len, :]
+        
+        return pos_embed
 
 
 class Attention(nn.Module):
@@ -140,10 +148,12 @@ class MLP(nn.Module):
         nn.init.normal_(self.W_in, std=self.cfg.init_range)
         nn.init.normal_(self.W_out, std=self.cfg.init_range)
 
-    def forward(
-        self, normalized_resid_mid: Float[Tensor, "batch posn d_model"]
-    ) -> Float[Tensor, "batch posn d_model"]:
-      pass
+    def forward(self, normalized_resid_mid: Float[Tensor, "batch posn d_model"]) -> Float[Tensor, "batch posn d_model"]:
+      trans = torch.matmul(normalized_resid_mid, self.W_in) + self.b_in
+      trans = gelu_new(trans)
+      result = torch.matmul(trans, self.W_out) + self.b_out
+      
+      return result
 
 
 class TransformerBlock(nn.Module):
@@ -170,11 +180,9 @@ class Unembed(nn.Module):
         nn.init.normal_(self.W_U, std=self.cfg.init_range)
         self.b_U = nn.Parameter(torch.zeros((cfg.d_vocab), requires_grad=False))
 
-    def forward(
-        self, normalized_resid_final: Float[Tensor, "batch position d_model"]
-    ) -> Float[Tensor, "batch position d_vocab"]:
-        #implement your solution here
-        pass
+    def forward(self, normalized_resid_final: Float[Tensor, "batch position d_model"]) -> Float[Tensor, "batch position d_vocab"]:
+       trans = torch.matmul(normalized_resid_final, self.W_U) + self.b_U
+       return trans
 
 class DemoTransformer(nn.Module):
     def __init__(self, cfg: Config):
