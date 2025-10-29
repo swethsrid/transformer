@@ -44,7 +44,7 @@ class LayerNorm(nn.Module):
         centered = residual-mean
         var = residual.var(dim=-1, keepdim=True, unbiased=False)
         normalized = centered/torch.sqrt(var + self.cfg.layer_norm_eps)
-        result = self.w * (normalized+self.b)
+        result = self.w * normalized+self.b
         
         return result
         
