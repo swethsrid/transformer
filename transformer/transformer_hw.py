@@ -57,8 +57,7 @@ class Embed(nn.Module):
         nn.init.normal_(self.W_E, std=self.cfg.init_range)
 
     def forward(self, tokens: Int[Tensor, "batch position"]) -> Float[Tensor, "batch position d_model"]:
-        #implement your solution here
-        pass
+        self.W_E[tokens]
 
 
 
@@ -112,12 +111,12 @@ class Attention(nn.Module):
         self, normalized_resid_pre: Float[Tensor, "batch posn d_model"]
     ) -> Float[Tensor, "batch posn d_model"]:
         # Linear Mapping: compute matrices Q, K, and V
-        q = einops.einsum(normalized_resid_pre, self.W_Q, '[fill in pattern here]') + self.b_Q
-        k = einops.einsum(normalized_resid_pre, self.W_K, '[fill in pattern here]') + self.b_K
-        v = einops.einsum(normalized_resid_pre, self.W_V, '[fill in pattern here]') + self.b_V
+        q = einops.einsum(normalized_resid_pre, self.W_Q, 'b p d, h d dh -> b p h dh') + self.b_Q
+        k = einops.einsum(normalized_resid_pre, self.W_K, 'b p d, h d dh -> b p h dh') + self.b_K
+        v = einops.einsum(normalized_resid_pre, self.W_V, 'b p d, h d dh -> b p h dh') + self.b_V
 
         # dot product to compute attention scores
-        a = einops.einsum(q, k, '[fill in pattern here]')
+        a = einops.einsum(q, k, 'b q h d, b k h d -> b h q k')
 
         # re-scale
         a = a / (self.cfg.d_head ** 0.5)
@@ -129,10 +128,10 @@ class Attention(nn.Module):
         a = a.softmax(dim=-1)
 
         # get get weighted sum of values
-        z = einops.einsum(v, a, '[fill in pattern here]')
+        z = einops.einsum(v, a, 'b k h d, b h q k -> b q h d')
 
         # sum over different heads
-        attn_out = einops.einsum(z, self.W_O, '[fill in pattern here]') + self.b_O
+        attn_out = einops.einsum(z, self.W_O, 'b p h d, h d m -> b p m') + self.b_O
 
         return attn_out
 
@@ -168,9 +167,14 @@ class TransformerBlock(nn.Module):
     def forward(
         self, resid_pre: Float[Tensor, "batch position d_model"]
     ) -> Float[Tensor, "batch position d_model"]:
-        #implement your solution here
-        pass
+        norm_pre = self.ln1(resid_pre)
+        attn_output = self.attn(norm_pre)
+        resid_mid = resid_pre + attn_output
+        
+        norm_mid = self.ln2(resid_mid)
+        mlp_output = self.mlp(norm_mid)
 
+        resid_final = resid_mid + mlp_output
 
 class Unembed(nn.Module):
     def __init__(self, cfg):
@@ -195,8 +199,13 @@ class DemoTransformer(nn.Module):
         self.unembed = Unembed(cfg)
 
     def forward(self, tokens: Int[Tensor, "batch position"]) -> Float[Tensor, "batch position d_vocab"]:
-        #implement your solution here
-        pass
+        embed_output = self.embed(tokens)
+        resid = embed_output + self.pos_embed(tokens)
+        for l in self.cfg.n_layers:
+            resid = self.blocks[l](resid)
+        normalized = self.ln_final(resid)
+        logits = self.unembed(normalized)
+        return logits
 
 def greedy_decode(model, start_tokens, max_new_tokens):
     """
