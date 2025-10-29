@@ -57,7 +57,7 @@ class Embed(nn.Module):
         nn.init.normal_(self.W_E, std=self.cfg.init_range)
 
     def forward(self, tokens: Int[Tensor, "batch position"]) -> Float[Tensor, "batch position d_model"]:
-        self.W_E[tokens]
+        return self.W_E[tokens]
 
 
 
@@ -175,6 +175,7 @@ class TransformerBlock(nn.Module):
         mlp_output = self.mlp(norm_mid)
 
         resid_final = resid_mid + mlp_output
+        return resid_final
 
 class Unembed(nn.Module):
     def __init__(self, cfg):
@@ -201,7 +202,7 @@ class DemoTransformer(nn.Module):
     def forward(self, tokens: Int[Tensor, "batch position"]) -> Float[Tensor, "batch position d_vocab"]:
         embed_output = self.embed(tokens)
         resid = embed_output + self.pos_embed(tokens)
-        for l in self.cfg.n_layers:
+        for l in range(self.cfg.n_layers):
             resid = self.blocks[l](resid)
         normalized = self.ln_final(resid)
         logits = self.unembed(normalized)
@@ -225,7 +226,6 @@ def greedy_decode(model, start_tokens, max_new_tokens):
 
         pass
         # implement your solution here
-
 
 
     return generated
