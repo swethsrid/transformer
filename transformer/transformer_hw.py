@@ -222,13 +222,14 @@ def greedy_decode(model, start_tokens, max_new_tokens):
     """
     with torch.no_grad():  # Disable gradient calculation for inference
         generated = start_tokens # Shape: [1, seq_len]
-
-
-        pass
-        # implement your solution here
-
+        for tok in range(max_new_tokens):
+            logits = model(generated)
+            next_tok_logits = logits[:, -1, :] 
+            next_tok = next_tok_logits.argmax(dim=-1, keepdim=True)
+            generated = torch.cat((generated, next_tok), dim=-1)
 
     return generated
+
 
 if __name__ == "__main__":
     # Load reference model only when running this file directly
